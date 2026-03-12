@@ -7,8 +7,9 @@ from pathlib import Path
 # Add project root to sys.path for cross-folder imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
-from dotenv import load_dotenv
 import os
+
+from dotenv import load_dotenv
 
 # load_dotenv must run before importing mistralai_workflows,
 # because the config is read from env vars at import time.
@@ -16,14 +17,19 @@ load_dotenv()
 
 import mistralai  # noqa: E402
 import mistralai_workflows as workflows  # noqa: E402
-import mistralai_workflows.plugins.mistralai as workflows_mistralai  # noqa: E402
-import mistralai_workflows.plugins.mistralai.activities  # noqa: E402, F401 - registers plugin activities on the worker
 import mistralai_workflows.core.encoding.payload_encoder as payload_encoder  # noqa: E402
 import mistralai_workflows.core.temporal.payload_codec as payload_codec  # noqa: E402
 import mistralai_workflows.core.temporal.payload_converter as payload_converter  # noqa: E402
+import mistralai_workflows.plugins.mistralai as workflows_mistralai  # noqa: E402
+import mistralai_workflows.plugins.mistralai.activities  # noqa: E402, F401 - registers plugin activities on the worker
 from pydantic import BaseModel  # noqa: E402
 
-from workflows.workflow.worker import process_document_ocr, extract_invoice_data  # noqa: E402
+from workflows.workflow.worker import (  # noqa: E402
+    DocumentInput,
+    extract_invoice_data,
+    process_document_ocr,
+    THRESHOLD,
+)
 
 api_key = os.environ.get("MISTRAL_API_KEY")
 
@@ -46,28 +52,40 @@ document_url = "https://kltmfijkwchheensxrkw.supabase.co/storage/v1/object/publi
 
 @workflows.workflow.define(name="ocr_durable_agent")
 class OCRDurableAgent:
+    def __init__(self) -> None:
+        self.human_approved = False
+        self._approval_received = False
+
+    @workflows.workflow.signal(name="approve", description="Human approval signal")
+    async def handle_approval(self, approved: bool) -> None:
+        """Signal handler for human approval."""
+        self.human_approved = approved
+        self._approval_received = True
+        print(f"Received approval signal: {approved}")
+
     @workflows.workflow.entrypoint
     async def entrypoint(self, document_url: str) -> dict:
-        session = workflows_mistralai.RemoteSession(raise_on_tool_fail=False)
+        # Step 1: Extract raw text from document via OCR
+        ocr_result = await process_document_ocr(DocumentInput(document_url=document_url))
 
+        # Step 2: Extract structured invoice data using LLM
+        invoice_data = await extract_invoice_data(ocr_result)
+
+        # Step 3: Generate a natural language summary using the durable agent
+        session = workflows_mistralai.RemoteSession(raise_on_tool_fail=False)
         agent = workflows_mistralai.Agent(
             model="mistral-medium-latest",
             name="ocr-invoice-agent",
-            description="Agent that extracts structured data from PDF invoices",
+            description="Agent that summarizes extracted invoice data",
             instructions=(
-                "You are an invoice processing agent. "
-                "When given a document URL, follow these steps:\n"
-                "1. Use process_document_ocr to extract text from the PDF.\n"
-                "2. Use extract_invoice_data to get structured invoice fields from the OCR result.\n"
-                "3. Return a summary of the extracted invoice data."
+                "You are an invoice assistant. "
+                "Provide a concise, human-readable summary of the invoice data provided."
             ),
-            tools=[process_document_ocr, extract_invoice_data],
-            completion_args=mistralai.CompletionArgs(tool_choice="auto"),
         )
 
         outputs = await workflows_mistralai.Runner.run(
             agent=agent,
-            inputs=f"Process the invoice at this URL: {document_url}",
+            inputs=f"Summarize this invoice:\n{invoice_data.model_dump_json(indent=2)}",
             session=session,
         )
 
@@ -76,7 +94,24 @@ class OCRDurableAgent:
             if isinstance(output, mistralai.TextChunk)
         ])
 
-        return {"answer": answer}
+        # Step 4: Human-in-the-loop validation for high-value invoices
+        requires_approval = invoice_data.total_amount > THRESHOLD
+        if requires_approval:
+            print(
+                f"Invoice amount {invoice_data.total_amount} exceeds threshold {THRESHOLD}. "
+                "Waiting for human approval..."
+            )
+            await workflows.workflow.wait_condition(lambda: self._approval_received is True)
+            decision = self.human_approved
+        else:
+            decision = True
+
+        return {
+            "answer": answer,
+            "decision": decision,
+            "total_amount": invoice_data.total_amount,
+            "required_human_approval": requires_approval,
+        }
 
 
 async def main() -> None:

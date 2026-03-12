@@ -10,6 +10,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 
 from dotenv import load_dotenv
 from mistralai_workflows import WorkflowsClient
+
 from workflows.workflow.run import OCRWorkflowInput
 
 load_dotenv()
@@ -25,7 +26,7 @@ async def main() -> None:
     document_url = "https://raw.githubusercontent.com/geoffroydautichamp/demo-workflows/master/invoices/batch1-1473.jpg"
     execution_id = uuid.uuid4().hex
 
-    print(f"Starting durable agent workflow...")
+    print("Starting durable agent workflow...")
     print(f"Document: {document_url}")
     print(f"Execution ID: {execution_id}\n")
 

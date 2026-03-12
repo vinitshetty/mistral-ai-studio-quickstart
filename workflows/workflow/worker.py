@@ -2,26 +2,26 @@
 
 import asyncio
 import base64
-import json
 import os
-from typing import Any
-from temporalio import activity, workflow
 import socket
+import uuid
+from typing import Any
 
 from dotenv import load_dotenv
+from temporalio import activity, workflow
 
 # load_dotenv must run before importing mistralai_workflows,
 # because the config is read from env vars at import time.
 load_dotenv()
 
 import httpx  # noqa: E402
-import pydantic  # noqa: E402
-from mistralai import Mistral  # noqa: E402
-
 import mistralai_workflows as workflows  # noqa: E402
 import mistralai_workflows.core.encoding.payload_encoder as payload_encoder  # noqa: E402
 import mistralai_workflows.core.temporal.payload_codec as payload_codec  # noqa: E402
 import mistralai_workflows.core.temporal.payload_converter as payload_converter  # noqa: E402
+import pydantic  # noqa: E402
+from mistralai import Mistral  # noqa: E402
+from mistralai.models import SystemMessage, UserMessage  # noqa: E402
 
 server_url = os.environ.get("SERVER_URL")
 api_key = os.environ.get("MISTRAL_API_KEY")
@@ -31,11 +31,13 @@ NEW_ENCODING = "json/wf_v1"
 payload_encoder.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
 payload_codec.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
 payload_converter.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
-payload_converter.WithContextJSONPayloadConverter.encoding = property(
-    lambda self: NEW_ENCODING
-)
+# fmt: off
+payload_converter.WithContextJSONPayloadConverter.encoding = property(  # type: ignore # noqa
+    lambda self: NEW_ENCODING 
+) 
+# fmt: on
 
-THRESHOLD = 100.0
+THRESHOLD = 1.0
 
 
 # Data Models
@@ -58,6 +60,12 @@ class InvoiceData(pydantic.BaseModel):
     bank_details: str
     supplier: str
     invoice_category: str
+
+class EnrichedInvoiceData(InvoiceData):
+    salesforce_id: str
+    date_of_contract: str
+    point_of_contact_email: str
+    point_of_contact: str
 
 
 class WorkflowResult(pydantic.BaseModel):
@@ -134,7 +142,21 @@ async def extract_invoice_data(ocr_result: OCRResponse) -> InvoiceData:
         f"on task_queue='{info.task_queue}', attempt={info.attempt}, "
         f"workflow_id='{info.workflow_id}'")
 
-    prompt = '''
+    SYSTEM_PROMPT = """
+    You are an agent specialised in extracting invoice data and categorising invoices. You will be provided with invoices under markdown format, and will be tasked to extract relevant information and categorise the invoice.
+
+    Required fields:
+    - invoice_number: The invoice number
+    - date: The invoice date (format: YYYY-MM-DD)
+    - total_amount: The total amount of the invoice (numeric value)
+    - bank_details: The bank account details (RIB)
+    - supplier: The supplier who sent the bill
+    - invoice_category: The category of the invoice. One of: financial_expense (bank fees, etc.), subscriptions (phones, software licences, etc), furniture (office supplies), raw_materials (purchase of good for production), rent (office rentals), professional_services (accountants, lawyers, consultants), expenses (travel, meals), marketing (ads, content creation), or unknown
+
+    If any field cannot be determined, use "unknown" for strings or 0 for numeric values.
+    """
+
+    USER_PROMPT = """
     Extract the following information from the invoice text below:
 
     Invoice text:
@@ -142,37 +164,120 @@ async def extract_invoice_data(ocr_result: OCRResponse) -> InvoiceData:
 
     ###
     Provide the extracted information in the required format.
-    '''
-
-    # Agent from Playground
-    inputs = [
-        {"role":"user","content":prompt.format(raw_text=ocr_result.raw_text)}
-    ]
+    """
+    SCHEMA = {
+        "type": "object",
+        "additionalProperties": False,
+        "required": [
+            "date",
+            "invoice_number",
+            "total_amount",
+            "supplier",
+            "invoice_category",
+            "bank_details",
+        ],
+        "properties": {
+            "date": {"type": "string", "description": "Date of the invoice"},
+            "supplier": {"type": "string", "description": "supplier"},
+            "bank_details": {
+                "type": "string",
+                "description": "The bank details of the supplier",
+            },
+            "total_amount": {"type": "number", "description": ""},
+            "invoice_number": {"type": "string", "description": ""},
+            "invoice_category": {
+                "type": "string",
+                "enum": [
+                    "financial_expense",
+                    "subscriptions",
+                    "furniture",
+                    "raw_materials",
+                    "rent",
+                    "professional_services",
+                    "expenses",
+                    "marketing",
+                    "unknown",
+                ],
+                "description": "Category of the spend",
+            },
+        },
+    }
 
     try:
-        response = client.beta.conversations.start(
-            agent_id="ag_019cd2ebee8c74ae8e579c98a1dff863",
-            inputs=inputs,
+        response = client.chat.complete(
+            model="mistral-large-latest",
+            messages=[  # type: ignore # noqa
+                SystemMessage(content=SYSTEM_PROMPT),
+                UserMessage(content=USER_PROMPT.format(raw_text=ocr_result)),
+            ],
+            response_format={  # type: ignore # noqa
+                "type": "json_schema",
+                "json_schema": {  # type: ignore # noqa
+                    "name": "invoice_data",
+                    "schema": SCHEMA,
+                    "strict": True,
+                },
+            },
         )
-        print(response)
 
-        raw_content = response.outputs[0].content
+        raw_content = response.choices[0].message.content
+        if not isinstance(raw_content, str):
+            raise ValueError(f"Unexpected content type: {type(raw_content)}")
+
         invoice_data = InvoiceData.model_validate_json(raw_content)
-
-        print("Extracted invoice data:", invoice_data)
-        return invoice_data
-
     except Exception as e:
         print(f"Error extracting invoice data: {e}")
         # Return default values if extraction fails
         return InvoiceData(
             invoice_number="unknown",
             date="unknown",
-            total_amount=0.0,
+            total_amount=10.0,
             bank_details="unknown",
             supplier="unknown",
-            invoice_category="unknown"
+            invoice_category="unknown",
         )
+    print("Extracted invoice data:", invoice_data)
+    return invoice_data
+
+
+@workflows.activity()
+async def data_enrichment_with_mcp(invoice_data: InvoiceData) -> EnrichedInvoiceData:
+    """Make a call to a MCP server with the extracted invoice data."""
+    # Get activity execution info
+    info = activity.info()
+    print(
+        f"Activity '{info.activity_type}' (id={info.activity_id}) "
+        f"on task_queue='{info.task_queue}', attempt={info.attempt}, "
+        f"workflow_id='{info.workflow_id}')"
+    )
+
+    # Simulate a call to a MCP server
+    return EnrichedInvoiceData(
+        **dict(invoice_data),
+        salesforce_id=str(uuid.uuid1()),
+        date_of_contract="2023-01-01",
+        point_of_contact_email="john.doe@example.com",
+        point_of_contact="John Doe",
+    )
+
+
+@workflows.activity()
+async def send_to_validation(invoice_data: InvoiceData) -> bool:
+    """Send invoice data to validation system."""
+    # Get activity execution info
+    info = activity.info()
+    print(
+        f"Activity '{info.activity_type}' (id={info.activity_id}) "
+        f"on task_queue='{info.task_queue}', attempt={info.attempt}, "
+        f"workflow_id='{info.workflow_id}')"
+    )
+    # import time
+
+    # time.sleep(1)
+    await asyncio.sleep(1)
+    # Simulate a call to a MCP server
+    return True
+
 
 # Workflow Definition
 @workflows.workflow.define(
@@ -212,15 +317,17 @@ class OCRDocumentWorkflow:
         # Step 2: Extract structured invoice data using LLM
         invoice_data = await extract_invoice_data(ocr_result)
 
-        # Step 3: Check if human approval is needed (e.g., amount > 100)
-        requires_approval = invoice_data.total_amount > 100
+        # Step 3: make a call to a MCP server
+        data_enriched_by_mcp = await data_enrichment_with_mcp(invoice_data)
+
+        # Step 4: Check if human approval is needed (e.g., amount > 100)
+        requires_approval = data_enriched_by_mcp.total_amount > THRESHOLD
 
         # If human approval is required, wait for the signal
         if requires_approval:
-            await workflows.workflow.wait_condition(lambda: self._approval_received is True)
-            decision = self.human_approved
+            decision = await send_to_validation(data_enriched_by_mcp)
         else:
-            decision = True  # Auto-approve if amount <= 100
+            decision = True  # Auto-approve if amount <= THRESHOLD
 
         # Convert InvoiceData to dict for WorkflowResult
         extracted_data = {
