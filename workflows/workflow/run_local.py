@@ -17,21 +17,23 @@ from workflows.workflow.worker import OCRDocumentWorkflow
 
 load_dotenv()
 
+INVOICES_DIR = Path(__file__).resolve().parents[2] / "invoices"
+
 class OCRWorkflowInput(BaseModel):
-    document_url: str
+    document_path: str
 
 async def main() -> None:
-    document_url = "https://kltmfijkwchheensxrkw.supabase.co/storage/v1/object/public/github/facture_stylo.pdf"
+    document_path = str(sorted(INVOICES_DIR.glob("*.jpg"))[0])
 
     print("=" * 70)
     print("OCR INVOICE WORKFLOW (LOCAL EXECUTION)")
     print("=" * 70)
-    print(f"\nDocument: {document_url}\n")
+    print(f"\nDocument: {document_path}\n")
 
     # Execute the workflow locally (no Temporal server)
     result = await execute_workflow(
         workflow=OCRDocumentWorkflow,  # Your workflow class
-        params=OCRWorkflowInput(document_url=document_url),  # Input as Pydantic model
+        params=OCRWorkflowInput(document_path=document_path),  # Input as Pydantic model
     )
 
     print("Workflow completed!")

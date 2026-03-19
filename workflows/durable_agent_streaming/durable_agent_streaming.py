@@ -37,19 +37,19 @@ NEW_ENCODING = "json/wf_v1"
 payload_encoder.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
 payload_codec.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
 payload_converter.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
-payload_converter.WithContextJSONPayloadConverter.encoding = property(
+payload_converter.WithContextJSONPayloadConverter.encoding = property(  # type: ignore # noqa
     lambda self: NEW_ENCODING
 )
 
 
 class PdfDoc(BaseModel):
-    document_url: str
+    document_path: str
 
 
 @workflows.workflow.define(name="ocr_durable_agent_streaming")
 class OCRDurableAgentStreaming:
     @workflows.workflow.entrypoint
-    async def entrypoint(self, document_url: str) -> dict:
+    async def entrypoint(self, document_path: str) -> dict:
         # stream=True: each LLM call publishes incremental Task events
         # (CustomTaskStarted → CustomTaskInProgress* → CustomTaskCompleted)
         # to the Workflows API, allowing real-time token-by-token observability.
@@ -61,8 +61,8 @@ class OCRDurableAgentStreaming:
             description="Agent that extracts structured data from PDF invoices (streaming)",
             instructions=(
                 "You are an invoice processing agent. "
-                "When given a document URL, follow these steps:\n"
-                "1. Use process_document_ocr to extract text from the PDF.\n"
+                "When given a document path, follow these steps:\n"
+                "1. Use process_document_ocr to extract text from the document.\n"
                 "2. Use extract_invoice_data to get structured invoice fields from the OCR result.\n"
                 "3. Return a detailed summary of the extracted invoice data."
             ),
@@ -72,7 +72,7 @@ class OCRDurableAgentStreaming:
 
         outputs = await workflows_mistralai.Runner.run(
             agent=agent,
-            inputs=f"Process the invoice at this URL: {document_url}",
+            inputs=f"Process the invoice at this path: {document_path}",
             session=session,
         )
 

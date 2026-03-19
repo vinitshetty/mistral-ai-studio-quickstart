@@ -38,16 +38,13 @@ NEW_ENCODING = "json/wf_v1"
 payload_encoder.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
 payload_codec.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
 payload_converter.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
-payload_converter.WithContextJSONPayloadConverter.encoding = property(
+payload_converter.WithContextJSONPayloadConverter.encoding = property(  # type: ignore # noqa
     lambda self: NEW_ENCODING
 )
 
 
 class PdfDoc(BaseModel):
-    document_url: str
-
-
-document_url = "https://kltmfijkwchheensxrkw.supabase.co/storage/v1/object/public/github/facture_stylo.pdf"
+    document_path: str
 
 
 @workflows.workflow.define(name="ocr_durable_agent")
@@ -64,9 +61,9 @@ class OCRDurableAgent:
         print(f"Received approval signal: {approved}")
 
     @workflows.workflow.entrypoint
-    async def entrypoint(self, document_url: str) -> dict:
+    async def entrypoint(self, document_path: str) -> dict:
         # Step 1: Extract raw text from document via OCR
-        ocr_result = await process_document_ocr(DocumentInput(document_url=document_url))
+        ocr_result = await process_document_ocr(DocumentInput(document_path=document_path))
 
         # Step 2: Extract structured invoice data using LLM
         invoice_data = await extract_invoice_data(ocr_result)

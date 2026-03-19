@@ -4,6 +4,7 @@ import asyncio
 import json
 import os
 import uuid
+from pathlib import Path
 
 from dotenv import load_dotenv
 from mistralai_workflows import WorkflowsClient
@@ -11,47 +12,47 @@ from pydantic import BaseModel
 
 load_dotenv()
 
+INVOICES_DIR = Path(__file__).resolve().parents[2] / "invoices"
+
 
 class OCRWorkflowInput(BaseModel):
     """Input for the OCR workflow."""
-    document_url: str
+    document_path: str
 
 
-async def run_single(client: WorkflowsClient, invoice_id: int) -> None:
+async def run_single(client: WorkflowsClient, invoice_path: Path) -> None:
     """Run the OCR workflow on a single invoice."""
-    invoices_url = "https://raw.githubusercontent.com/geoffroydautichamp/demo-workflows/master/invoices/batch1-{id}.jpg"
-    document_url = invoices_url.format(id=invoice_id)
     execution_id = uuid.uuid4().hex
 
-    print(f"[{invoice_id}] Starting workflow for {document_url}")
-    print(f"[{invoice_id}] Execution ID: {execution_id}")
+    print(f"[{invoice_path.name}] Starting workflow for {invoice_path}")
+    print(f"[{invoice_path.name}] Execution ID: {execution_id}")
 
     await client.execute_workflow(
         workflow_identifier="ocr_invoice_workflow_test",
-        input_data=OCRWorkflowInput(document_url=document_url),
+        input_data=OCRWorkflowInput(document_path=str(invoice_path)),
         execution_id=execution_id,
     )
 
-    print(f"[{invoice_id}] Workflow started. Waiting for completion...")
-    print(f"[{invoice_id}] To approve: uv run python workflows/utils/approve.py {execution_id}")
+    print(f"[{invoice_path.name}] Workflow started. Waiting for completion...")
+    print(f"[{invoice_path.name}] To approve: uv run python workflows/utils/approve.py {execution_id}")
 
     response = await client.wait_for_workflow_completion(execution_id)
     result = response.result
 
     print("=" * 70)
-    print(f"[{invoice_id}] Workflow completed!")
+    print(f"[{invoice_path.name}] Workflow completed!")
 
     if isinstance(result, dict):
         decision = result.get("decision", "unknown")
         total_amount = result.get("total_amount", 0)
         required_approval = result.get("required_human_approval", False)
 
-        print(f"[{invoice_id}] DECISION: {decision}")
-        print(f"[{invoice_id}] Total Amount: {total_amount} EUR")
-        print(f"[{invoice_id}] Required Human Approval: {required_approval}")
+        print(f"[{invoice_path.name}] DECISION: {decision}")
+        print(f"[{invoice_path.name}] Total Amount: {total_amount} EUR")
+        print(f"[{invoice_path.name}] Required Human Approval: {required_approval}")
         print("-" * 70)
 
-        print(f"[{invoice_id}] EXTRACTED DATA:")
+        print(f"[{invoice_path.name}] EXTRACTED DATA:")
         extracted = result.get("extracted_data", result)
         print(json.dumps(extracted, indent=2, ensure_ascii=False))
     else:
@@ -61,16 +62,17 @@ async def run_single(client: WorkflowsClient, invoice_id: int) -> None:
 
 
 async def main() -> None:
-    """Run OCR workflows on all invoices in parallel."""
+    """Run OCR workflows on all invoices in the local invoices folder."""
     client = WorkflowsClient(
         base_url=os.environ["SERVER_URL"],
         api_key=os.environ["MISTRAL_API_KEY"],
     )
 
-    invoice_ids = range(1472, 1490)
-    print(f"Launching {len(invoice_ids)} workflows in parallel...\n")
+    invoice_paths = sorted(INVOICES_DIR.glob("*.jpg"))
+    print(f"Found {len(invoice_paths)} invoices in {INVOICES_DIR}")
+    print(f"Launching {len(invoice_paths)} workflows in parallel...\n")
 
-    await asyncio.gather(*(run_single(client, id) for id in invoice_ids))
+    await asyncio.gather(*(run_single(client, path) for path in invoice_paths))
 
 
 if __name__ == "__main__":

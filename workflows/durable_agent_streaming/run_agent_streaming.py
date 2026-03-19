@@ -106,16 +106,17 @@ async def main() -> None:
         api_key=os.environ["MISTRAL_API_KEY"],
     )
 
-    document_url = "https://raw.githubusercontent.com/geoffroydautichamp/demo-workflows/master/invoices/batch1-1473.jpg"
+    invoices_dir = Path(__file__).resolve().parents[2] / "invoices"
+    document_path = str(sorted(invoices_dir.glob("*.jpg"))[0])
     execution_id = uuid.uuid4().hex
 
     print("Starting streaming durable agent workflow...")
-    print(f"Document: {document_url}")
+    print(f"Document: {document_path}")
     print(f"Execution ID: {execution_id}")
 
     await client.execute_workflow(
         workflow_identifier="ocr_durable_agent_streaming",
-        input_data=OCRWorkflowInput(document_url=document_url),
+        input_data=OCRWorkflowInput(document_path=document_path),
         execution_id=execution_id,
     )
 
