@@ -316,6 +316,15 @@ async def send_to_validation(invoice_data: InvoiceData) -> bool:
 class OCRDocumentWorkflow(workflows.InteractiveWorkflow):
     """Extracts invoice data from PDFs. Requires human approval for amounts >= threshold."""
 
+    @workflows.workflow.signal(name="approve", description="Approve or reject the invoice (AIStudio)")
+    async def handle_approval(self, approved: bool) -> None:
+        """AIStudio signal path: bridges into the pending wait_for_input task."""
+        decision = "approve" if approved else "reject"
+        for pending in self._pending_inputs.values():  # type: ignore[attr-defined]
+            pending.input = {"decision": decision}
+            pending.has_received_input = True
+            break
+
     @workflows.workflow.entrypoint
     async def run(
         self, document_path: str
