@@ -6,6 +6,7 @@ Re-uses deterministic execution IDs based on invoice filename so that:
 - Failed/timed-out/cancelled executions are re-executed with the same ID
 """
 
+import argparse
 import asyncio
 import json
 import os
@@ -43,9 +44,9 @@ class OCRWorkflowInput(BaseModel):
     document_path: str
 
 
-async def run_single(client: WorkflowsClient, invoice_path: Path) -> None:
+async def run_single(client: WorkflowsClient, invoice_path: Path, demo_run_id: str) -> None:
     """Run the OCR workflow on a single invoice, resuming if already in progress."""
-    execution_id = f"invoice-{invoice_path.stem}"
+    execution_id = f"invoice-{invoice_path.stem}-{demo_run_id}"
 
     # Check existing state on the server (Temporal is the source of truth)
     should_start = False
@@ -116,6 +117,10 @@ async def run_single(client: WorkflowsClient, invoice_path: Path) -> None:
 
 async def main() -> None:
     """Run OCR workflows on all invoices, skipping completed and resuming in-progress ones."""
+    parser = argparse.ArgumentParser()
+    parser.add_argument("demo_run_id", nargs="?", default="default", help="Run ID appended to execution IDs (change to reprocess all invoices)")
+    args = parser.parse_args()
+
     client = WorkflowsClient(
         base_url=os.environ["SERVER_URL"],
         api_key=os.environ["MISTRAL_API_KEY"],
@@ -123,9 +128,10 @@ async def main() -> None:
 
     invoice_paths = sorted(INVOICES_DIR.glob("*.jpg"))
     print(f"Found {len(invoice_paths)} invoices in {INVOICES_DIR}")
+    print(f"Run ID: {args.demo_run_id}")
     print(f"Launching {len(invoice_paths)} workflows in parallel...\n")
 
-    await asyncio.gather(*(run_single(client, path) for path in invoice_paths))
+    await asyncio.gather(*(run_single(client, path, args.demo_run_id) for path in invoice_paths))
 
 
 if __name__ == "__main__":
