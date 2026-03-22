@@ -43,7 +43,7 @@ payload_converter.WithContextJSONPayloadConverter.encoding = property(  # type: 
 ) 
 # fmt: on
 
-THRESHOLD = 1.0
+THRESHOLD = 3000
 
 
 # Data Models
