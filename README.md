@@ -78,6 +78,8 @@ uv run python workflows/workflow/worker.py
 **Trigger a batch of workflows** (invoices 1472–1490 in parallel):
 ```bash
 uv run python workflows/workflow/run.py
+
+uv run python workflows/workflow/run_w_resume.py <run-id>
 ```
 
 **Run locally without Temporal** (useful for development):
