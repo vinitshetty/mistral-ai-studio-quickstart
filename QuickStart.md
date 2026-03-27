@@ -160,7 +160,7 @@ Hey, this is "Boulangerie de Paris", you owe me 5€ for the croissants
 
 Le Chat returns a structured JSON response from your deployed agent. Your agent is now live and accessible across your organization.
 
-![Agent deployed in Le Chat](assets/le-chat-agent.png)
+
 
 ---
 
@@ -207,6 +207,13 @@ The judge runs against your dataset and produces a pass/fail score per entry. Yo
 
 Your agent currently handles email text. Let's extend it to process PDF invoices.
 
+Clone the workflow repository to find invoice samples:
+
+```bash
+git clone https://github.com/vinitshetty/demo-workflows-march_26.git
+cd demo-workflows-march_26/invoices
+```
+
 **Navigate to:** AI Studio » **Document AI**
 
 Upload a sample PDF invoice and observe the structured extraction output in the GUI.
@@ -230,8 +237,7 @@ For production invoice processing — with parallelism, retries, human-in-the-lo
 Clone the example workflow repository and install dependencies:
 
 ```bash
-git clone https://github.com/mistralai/workflows-examples.git
-cd workflows-examples
+cd demo-workflows-march_26
 uv sync
 ```
 
@@ -241,10 +247,6 @@ Open the project in VS Code with the **Mistral Code** assistant enabled. Ask it:
 
 ```
 What's in this repository?
-```
-
-```
-What are the commands to start a server and run a worker?
 ```
 
 ### 7c — Start the Workflow Server and Worker
@@ -278,8 +280,6 @@ Once your workflow is running locally, publish it to AI Studio so users can trig
 ### Verification
 
 Your workflow appears in Le Chat as a callable assistant. Users can trigger multi-step invoice processing — including PDF parsing, extraction, validation, and logging — from a single chat message.
-
-![Workflow published in AI Studio](assets/workflow-published.png)
 
 ---
 
