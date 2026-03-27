@@ -313,8 +313,6 @@ If you deployed resources you no longer need:
 
 - [Mistral AI Documentation](https://docs.mistral.ai/)
 - [Mistral Python SDK](https://github.com/mistralai/client-python)
-- [Mistral Workflows SDK](https://github.com/mistralai/workflows-examples)
 - [Document AI Guide](https://docs.mistral.ai/capabilities/document/)
 - [Le Chat](https://chat.mistral.ai/)
 - [Mistral API Reference](https://docs.mistral.ai/api/)
-- [Fine-tuning Guide](https://docs.mistral.ai/capabilities/finetuning/)
