@@ -1,4 +1,4 @@
-<img width="1274" height="599" alt="image" src="https://github.com/user-attachments/assets/a02eded8-ce4b-4907-bc2b-9f4b2cbec48b" />---
+---
 id: mistral-ai-studio-quickstart
 summary: Build, deploy, and monitor your first AI agent using Mistral AI Studio — from prompt to production in one session.
 tags:
@@ -211,8 +211,8 @@ Your agent currently handles email text. Let's extend it to process PDF invoices
 Clone the workflow repository to find invoice samples:
 
 ```bash
-git clone https://github.com/vinitshetty/demo-workflows-march_26.git
-cd demo-workflows-march_26/invoices
+git clone https://github.com/vinitshetty/mistral-ai-studio-quickstart.git
+cd mistral-ai-studio-quickstart/invoices
 ```
 
 **Navigate to:** AI Studio » **Document AI**
@@ -238,7 +238,7 @@ For production invoice processing — with parallelism, retries, human-in-the-lo
 Clone the example workflow repository and install dependencies:
 
 ```bash
-cd demo-workflows-march_26
+cd mistral-ai-studio-quickstart
 uv sync
 ```
 
