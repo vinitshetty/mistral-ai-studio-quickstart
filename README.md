@@ -1,4 +1,4 @@
----
+<img width="1274" height="599" alt="image" src="https://github.com/user-attachments/assets/a02eded8-ce4b-4907-bc2b-9f4b2cbec48b" />---
 id: mistral-ai-studio-quickstart
 summary: Build, deploy, and monitor your first AI agent using Mistral AI Studio — from prompt to production in one session.
 tags:
@@ -282,7 +282,12 @@ Once your workflow is running locally, publish it to AI Studio so users can trig
 
 Your workflow appears in Le Chat as a callable assistant. Users can trigger multi-step invoice processing — including PDF parsing, extraction, validation, and logging — from a single chat message.
 
+<img width="1274" height="599" alt="image" src="https://github.com/user-attachments/assets/28da7df9-8401-400b-be25-eb321489abb5" />
+
+<img width="1435" height="616" alt="image" src="https://github.com/user-attachments/assets/b0ff703f-13e0-4d03-96e9-130622dddb4f" />
+
 ---
+
 
 ## Step 8: Summary & Cleanup
 
