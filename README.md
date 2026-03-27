@@ -47,7 +47,8 @@ By the end of this guide, you will have:
 
 An end-to-end invoice processing system — starting from a free-text email, ending in a scalable, observable, production-grade workflow.
 
-![Mistral AI Studio Overview](assets/mistral-studio-overview.png)
+<img width="1470" height="732" alt="image" src="https://github.com/user-attachments/assets/384be92d-4287-4c8b-9749-4c5f173a2eba" />
+
 
 ---
 
