@@ -242,6 +242,13 @@ cd mistral-ai-studio-quickstart
 uv sync
 ```
 
+Go to [Mistral AI Studio](https://console.mistral.ai/) » **API Keys** and generate a new API key. Then add it to the `.env.sample` file and rename it to `.env`:
+
+```bash
+cp .env.sample .env
+# Open .env and set your MISTRAL_API_KEY
+```
+
 ### 7b — Use Mistral Code to Understand the Repo
 
 Open the project in VS Code with the **Mistral Code** assistant enabled. Ask it:
