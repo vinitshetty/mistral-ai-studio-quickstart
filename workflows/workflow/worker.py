@@ -15,7 +15,9 @@ from temporalio import activity, workflow
 load_dotenv()
 
 from pathlib import Path  # noqa: E402
+from urllib.parse import urlparse  # noqa: E402
 
+import aiohttp  # noqa: E402
 import mistralai_workflows as workflows  # noqa: E402
 import mistralai_workflows.core.encoding.payload_encoder as payload_encoder  # noqa: E402
 import mistralai_workflows.core.temporal.payload_codec as payload_codec  # noqa: E402
@@ -101,6 +103,23 @@ client = Mistral(
 # Activities
 
 
+async def fetch_url(url: str) -> bytes:
+    """Fetch content from a URL."""
+    async with aiohttp.ClientSession() as session:
+        async with session.get(url) as response:
+            response.raise_for_status()
+            return await response.read()
+
+
+def is_url(path: str) -> bool:
+    """Check if a path is a URL."""
+    try:
+        result = urlparse(path)
+        return all([result.scheme, result.netloc])
+    except ValueError:
+        return False
+
+
 @workflows.activity()
 async def process_document_ocr(doc: DocumentInput) -> OCRResponse:
     """Extract structured data from a document using Mistral OCR."""
@@ -117,11 +136,24 @@ async def process_document_ocr(doc: DocumentInput) -> OCRResponse:
     )
 
     print(f"Reading document from: {document_path}")
-    file_bytes = Path(document_path).read_bytes()
+    
+    # Handle both local files and URLs
+    if is_url(document_path):
+        file_bytes = await fetch_url(document_path)
+    else:
+        file_bytes = Path(document_path).read_bytes()
+    
     base64_file = base64.b64encode(file_bytes).decode("utf-8")
     print(f"Read {len(file_bytes)} bytes")
 
-    suffix = Path(document_path).suffix.lower()
+    # Determine file type from URL or local path
+    if is_url(document_path):
+        # Extract file extension from URL
+        parsed = urlparse(document_path)
+        path_part = parsed.path
+        suffix = Path(path_part).suffix.lower() if path_part else ""
+    else:
+        suffix = Path(document_path).suffix.lower()
     if suffix in (".jpg", ".jpeg"):
         document_payload = {
             "type": "image_url",

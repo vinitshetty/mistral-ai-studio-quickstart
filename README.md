@@ -263,18 +263,18 @@ In two separate terminal windows:
 
 **Terminal 1 — Start the worker:**
 ```bash
-uv run python workflows/workflow/worker.py
+ uv run --frozen python workflows/workflow/worker.py
 ```
 
 **Terminal 2 — Run the workflow:**
 ```bash
-uv run python workflows/workflow/run.py
+uv run  --frozen  python workflows/workflow/run.py
 ```
 
 To test resume behavior (simulating a crash mid-execution):
 
 ```bash
-uv run python workflows/workflow/run_w_resume.py <your-batch-id>
+uv run  --frozen  python workflows/workflow/run_w_resume.py <your-batch-id>
 ```
 
 > **Warning:** Use the same `batch-id` to resume an interrupted run. Using a new ID starts a fresh execution.

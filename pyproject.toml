@@ -10,4 +10,5 @@ dependencies = [
     "mistralai-workflows[agents]==2.0.0b5",
     "mistralai-workflows[mistralai]",
     "httpx>=0.27,<1.0",
+    "aiohttp>=3.9.0",
 ]
