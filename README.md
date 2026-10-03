@@ -31,7 +31,7 @@ By the end of this guide, you will have:
 ### Prerequisites
 
 - A [Mistral AI account](https://console.mistral.ai/) with access to AI Studio
-- Python 3.10+ installed
+- Python 3.12+ installed
 - `uv` package manager (`pip install uv`)
 - Basic familiarity with Python and REST APIs
 
@@ -231,6 +231,8 @@ You should see structured key-value extraction from your PDF invoice, identical 
 
 For production invoice processing — with parallelism, retries, human-in-the-loop approvals, and failure recovery — use **Mistral Workflows**.
 
+The workflow code lives in `workflows/workflow/worker.py` and is built on the [`mistralai-workflows`](https://pypi.org/project/mistralai-workflows/) SDK (`import mistralai.workflows as workflows`, v3.15+). Client-side scripts (`run.py`, `run_w_resume.py`, `utils/`) trigger and control executions through the Mistral Python SDK client.
+
 > **What is a Workflow?** Workflows is Mistral's framework for orchestrating multi-step AI processes. Each step can be a different model, API call, or custom logic function. A central durable execution engine persists every state automatically — failures trigger retries, and long-running pipelines can pause and resume without data loss.
 
 ### 7a — Set Up the Project
@@ -242,12 +244,17 @@ cd mistral-ai-studio-quickstart
 uv sync
 ```
 
-Go to [Mistral AI Studio](https://console.mistral.ai/) » **API Keys** and generate a new API key. Then add it to the `.env.sample` file and rename it to `.env`:
+Go to [Mistral AI Studio](https://console.mistral.ai/) » **API Keys** and generate a new API key. Then copy the `.env.example` file to `.env`:
 
 ```bash
-cp .env.sample .env
+cp .env.example .env
 # Open .env and set your MISTRAL_API_KEY
 ```
+
+Two more variables in `.env` matter:
+
+- `SERVER_URL` — the Mistral API endpoint (defaults to `https://api.mistral.ai`)
+- `DEPLOYMENT_NAME` — a stable identifier for this worker deployment (e.g. `invoice-parser`). The Workflows SDK uses it as the task queue, so executions are routed to this worker.
 
 ### 7b — Use Mistral Code to Understand the Repo
 
@@ -271,6 +278,19 @@ In two separate terminal windows:
 uv run  --frozen  python workflows/workflow/run.py
 ```
 
+This processes every invoice in `invoices/`. Pass file paths or URLs to run specific documents:
+
+```bash
+uv run  --frozen  python workflows/workflow/run.py invoices/batch1-1472.jpg
+```
+
+**Approving high-value invoices:** any invoice over $3,000 pauses the workflow and waits for a human decision. The runner prints the execution ID and the exact command to approve it — run it from a third terminal:
+
+```bash
+uv run  --frozen  python workflows/utils/approve.py <execution-id>          # approve
+uv run  --frozen  python workflows/utils/approve.py <execution-id> --reject # reject
+```
+
 To test resume behavior (simulating a crash mid-execution):
 
 ```bash
@@ -278,6 +298,10 @@ uv run  --frozen  python workflows/workflow/run_w_resume.py <your-batch-id>
 ```
 
 > **Warning:** Use the same `batch-id` to resume an interrupted run. Using a new ID starts a fresh execution.
+
+### Verification
+
+The runner prints a summary per invoice — supplier, date, amount, category, and the approval decision. Invoices under $3,000 are auto-approved; higher amounts complete only after you send the approval signal.
 
 ### 7d — Publish to AI Studio
 
