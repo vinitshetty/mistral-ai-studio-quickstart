@@ -110,13 +110,12 @@ def is_url(path: str) -> bool:
         return False
 
 
-@workflows.activity()
-async def process_document_ocr(doc: DocumentInput) -> OCRResponse:
-    """Extract structured data from a document using Mistral OCR."""
-
-    document_path = doc.document_path
-
-    # Get activity execution info
+def log_activity_context() -> None:
+    """Log Temporal execution details when running inside an activity."""
+    if not activity.in_activity():
+        # Direct local call (e.g. from workflows/utils/test.py)
+        print("[Local] Running activity directly, outside Temporal")
+        return
     info = activity.info()
     print(
         f"[Worker {socket.gethostname()}:{os.getpid()}] "
@@ -124,6 +123,16 @@ async def process_document_ocr(doc: DocumentInput) -> OCRResponse:
         f"on task_queue='{info.task_queue}', attempt={info.attempt}, "
         f"workflow_id='{info.workflow_id}'"
     )
+
+
+@workflows.activity()
+async def process_document_ocr(doc: DocumentInput) -> OCRResponse:
+    """Extract structured data from a document using Mistral OCR."""
+
+    document_path = doc.document_path
+
+    # Log activity execution info when running inside Temporal
+    log_activity_context()
 
     print(f"Reading document from: {document_path}")
     
@@ -183,14 +192,8 @@ async def process_document_ocr(doc: DocumentInput) -> OCRResponse:
 async def extract_invoice_data(ocr_result: OCRResponse) -> InvoiceData:
     """Extract structured invoice data from raw text using LLM."""
 
-    # Get activity execution info
-    info = activity.info()
-    print(
-        f"[Worker {socket.gethostname()}:{os.getpid()}] "
-        f"Activity '{info.activity_type}' (id={info.activity_id}) "
-        f"on task_queue='{info.task_queue}', attempt={info.attempt}, "
-        f"workflow_id='{info.workflow_id}'"
-    )
+    # Log activity execution info when running inside Temporal
+    log_activity_context()
 
     SYSTEM_PROMPT = """
     You are an agent specialised in extracting invoice data and categorising invoices. You will be provided with invoices under markdown format, and will be tasked to extract relevant information and categorise the invoice.
@@ -293,13 +296,8 @@ async def extract_invoice_data(ocr_result: OCRResponse) -> InvoiceData:
 @workflows.activity()
 async def data_enrichment_with_mcp(invoice_data: InvoiceData) -> EnrichedInvoiceData:
     """Make a call to a MCP server with the extracted invoice data."""
-    # Get activity execution info
-    info = activity.info()
-    print(
-        f"Activity '{info.activity_type}' (id={info.activity_id}) "
-        f"on task_queue='{info.task_queue}', attempt={info.attempt}, "
-        f"workflow_id='{info.workflow_id}')"
-    )
+    # Log activity execution info when running inside Temporal
+    log_activity_context()
 
     # Simulate a call to a MCP server
     return EnrichedInvoiceData(
@@ -314,13 +312,8 @@ async def data_enrichment_with_mcp(invoice_data: InvoiceData) -> EnrichedInvoice
 @workflows.activity()
 async def send_to_validation(invoice_data: InvoiceData) -> bool:
     """Send invoice data to validation system."""
-    # Get activity execution info
-    info = activity.info()
-    print(
-        f"Activity '{info.activity_type}' (id={info.activity_id}) "
-        f"on task_queue='{info.task_queue}', attempt={info.attempt}, "
-        f"workflow_id='{info.workflow_id}')"
-    )
+    # Log activity execution info when running inside Temporal
+    log_activity_context()
     # import time
 
     # time.sleep(1)
