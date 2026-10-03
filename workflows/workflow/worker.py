@@ -17,16 +17,20 @@ load_dotenv()
 from pathlib import Path  # noqa: E402
 from urllib.parse import urlparse  # noqa: E402
 
-import aiohttp  # noqa: E402
 import mistralai.workflows as workflows  # noqa: E402
 import mistralai.workflows.plugins.mistralai as workflows_mistralai  # noqa: E402
 import pydantic  # noqa: E402
-from mistralai.client import Mistral  # noqa: E402
-from mistralai.client.models import SystemMessage, UserMessage  # noqa: E402
 from mistralai.workflows.plugins.mistralai.lechat import (  # noqa: E402
     FormInput,
     SingleChoice,
 )
+
+# These are only used inside activities; pass them through the Temporal
+# workflow sandbox so they don't fail determinism validation at registration.
+with workflow.unsafe.imports_passed_through():  # noqa: E402
+    import aiohttp  # noqa: E402
+    from mistralai.client import Mistral  # noqa: E402
+    from mistralai.client.models import SystemMessage, UserMessage  # noqa: E402
 
 server_url = os.environ.get("SERVER_URL")
 api_key = os.environ.get("MISTRAL_API_KEY")

@@ -81,6 +81,11 @@ async def run_single(client: Mistral, invoice_path: Path, demo_run_id: str) -> N
                 workflow_identifier="ocr_invoice_workflow_test",
                 input=OCRWorkflowInput(document_path=str(invoice_path)),
                 execution_id=execution_id,
+                **(
+                    {"deployment_name": os.environ.get("DEPLOYMENT_NAME")}
+                    if os.environ.get("DEPLOYMENT_NAME")
+                    else {}
+                ),
             )
         except SDKError as e:
             if e.status_code == HTTPStatus.CONFLICT.value:
@@ -98,7 +103,13 @@ async def run_single(client: Mistral, invoice_path: Path, demo_run_id: str) -> N
     print("=" * 70)
     print(f"[{invoice_path.name}] Workflow completed!")
 
-    if isinstance(result, dict):
+    if isinstance(result, dict) and "content" in result:
+        # ChatAssistantWorkflowOutput shape returned by the workflow
+        text = "\n".join(
+            item.get("text", "") for item in result["content"] if isinstance(item, dict)
+        )
+        print(text or json.dumps(result, indent=2, ensure_ascii=False))
+    elif isinstance(result, dict):
         decision = result.get("decision", "unknown")
         total_amount = result.get("total_amount", 0)
         required_approval = result.get("required_human_approval", False)

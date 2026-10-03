@@ -31,7 +31,7 @@ def is_url(path: str) -> bool:
         return False
 
 
-async def run_single(client: Mistral, document_path: str) -> None:
+async def run_single(client: Mistral, document_path: str, deployment_name: str | None) -> None:
     """Run the OCR workflow on a single document."""
     execution_id = uuid.uuid4().hex
     doc_name = os.path.basename(document_path) if not is_url(document_path) else document_path
@@ -43,6 +43,7 @@ async def run_single(client: Mistral, document_path: str) -> None:
         workflow_identifier="ocr_invoice_workflow_test",
         input=OCRWorkflowInput(document_path=document_path),
         execution_id=execution_id,
+        **({"deployment_name": deployment_name} if deployment_name else {}),
     )
 
     print(f"[{doc_name}] Workflow started. Waiting for completion...")
@@ -54,7 +55,13 @@ async def run_single(client: Mistral, document_path: str) -> None:
     print("=" * 70)
     print(f"[{doc_name}] Workflow completed!")
 
-    if isinstance(result, dict):
+    if isinstance(result, dict) and "content" in result:
+        # ChatAssistantWorkflowOutput shape returned by the workflow
+        text = "\n".join(
+            item.get("text", "") for item in result["content"] if isinstance(item, dict)
+        )
+        print(text or json.dumps(result, indent=2, ensure_ascii=False))
+    elif isinstance(result, dict):
         decision = result.get("decision", "unknown")
         total_amount = result.get("total_amount", 0)
         required_approval = result.get("required_human_approval", False)
@@ -91,7 +98,10 @@ async def main() -> None:
 
     print(f"Launching {len(document_paths)} workflows in parallel...\n")
 
-    await asyncio.gather(*(run_single(client, path) for path in document_paths))
+    deployment_name = os.environ.get("DEPLOYMENT_NAME")
+    await asyncio.gather(
+        *(run_single(client, path, deployment_name) for path in document_paths)
+    )
 
 
 if __name__ == "__main__":

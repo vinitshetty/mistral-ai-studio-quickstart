@@ -6,14 +6,8 @@ import sys
 
 from dotenv import load_dotenv
 from mistralai.client import Mistral
-from pydantic import BaseModel
 
 load_dotenv()
-
-
-class ApprovalInput(BaseModel):
-    """Input for the approval signal."""
-    approved: bool
 
 
 async def send_approval(execution_id: str, approved: bool = True) -> None:
@@ -26,7 +20,7 @@ async def send_approval(execution_id: str, approved: bool = True) -> None:
     await client.workflows.executions.signal_workflow_execution_async(
         execution_id=execution_id,
         name="approve",
-        input=ApprovalInput(approved=approved),
+        input={"approved": approved},
     )
 
     status = "APPROVED" if approved else "REJECTED"
