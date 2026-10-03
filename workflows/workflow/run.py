@@ -9,7 +9,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from dotenv import load_dotenv
-from mistralai_workflows import WorkflowsClient
+from mistralai.client import Mistral
 from pydantic import BaseModel
 
 load_dotenv()
@@ -31,7 +31,7 @@ def is_url(path: str) -> bool:
         return False
 
 
-async def run_single(client: WorkflowsClient, document_path: str) -> None:
+async def run_single(client: Mistral, document_path: str) -> None:
     """Run the OCR workflow on a single document."""
     execution_id = uuid.uuid4().hex
     doc_name = os.path.basename(document_path) if not is_url(document_path) else document_path
@@ -39,16 +39,16 @@ async def run_single(client: WorkflowsClient, document_path: str) -> None:
     print(f"[{doc_name}] Starting workflow for {document_path}")
     print(f"[{doc_name}] Execution ID: {execution_id}")
 
-    await client.execute_workflow(
+    await client.workflows.execute_workflow_async(
         workflow_identifier="ocr_invoice_workflow_test",
-        input_data=OCRWorkflowInput(document_path=document_path),
+        input=OCRWorkflowInput(document_path=document_path),
         execution_id=execution_id,
     )
 
     print(f"[{doc_name}] Workflow started. Waiting for completion...")
     print(f"[{doc_name}] To approve: uv run python workflows/utils/approve.py {execution_id}")
 
-    response = await client.wait_for_workflow_completion(execution_id)
+    response = await client.workflows.wait_for_workflow_completion_async(execution_id)
     result = response.result
 
     print("=" * 70)
@@ -75,8 +75,8 @@ async def run_single(client: WorkflowsClient, document_path: str) -> None:
 
 async def main() -> None:
     """Run OCR workflows on local invoices or URL inputs."""
-    client = WorkflowsClient(
-        base_url=os.environ["SERVER_URL"],
+    client = Mistral(
+        server_url=os.environ["SERVER_URL"],
         api_key=os.environ["MISTRAL_API_KEY"],
     )
 

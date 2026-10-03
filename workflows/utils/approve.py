@@ -5,7 +5,7 @@ import os
 import sys
 
 from dotenv import load_dotenv
-from mistralai_workflows import WorkflowsClient
+from mistralai.client import Mistral
 from pydantic import BaseModel
 
 load_dotenv()
@@ -18,15 +18,15 @@ class ApprovalInput(BaseModel):
 
 async def send_approval(execution_id: str, approved: bool = True) -> None:
     """Send approval signal to a workflow execution."""
-    client = WorkflowsClient(
-        base_url=os.environ["SERVER_URL"],
+    client = Mistral(
+        server_url=os.environ["SERVER_URL"],
         api_key=os.environ["MISTRAL_API_KEY"],
     )
 
-    await client.signal_workflow(
+    await client.workflows.executions.signal_workflow_execution_async(
         execution_id=execution_id,
-        signal_name="approve",
-        input_data=ApprovalInput(approved=approved),
+        name="approve",
+        input=ApprovalInput(approved=approved),
     )
 
     status = "APPROVED" if approved else "REJECTED"

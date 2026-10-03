@@ -10,7 +10,7 @@ from typing import Any
 from dotenv import load_dotenv
 from temporalio import activity, workflow
 
-# load_dotenv must run before importing mistralai_workflows,
+# load_dotenv must run before importing mistralai.workflows,
 # because the config is read from env vars at import time.
 load_dotenv()
 
@@ -18,32 +18,18 @@ from pathlib import Path  # noqa: E402
 from urllib.parse import urlparse  # noqa: E402
 
 import aiohttp  # noqa: E402
-import mistralai_workflows as workflows  # noqa: E402
-import mistralai_workflows.core.encoding.payload_encoder as payload_encoder  # noqa: E402
-import mistralai_workflows.core.temporal.payload_codec as payload_codec  # noqa: E402
-import mistralai_workflows.core.temporal.payload_converter as payload_converter  # noqa: E402
-import mistralai_workflows.plugins.mistralai as workflows_mistralai  # noqa: E402
+import mistralai.workflows as workflows  # noqa: E402
+import mistralai.workflows.plugins.mistralai as workflows_mistralai  # noqa: E402
 import pydantic  # noqa: E402
-from mistralai import Mistral  # noqa: E402
-from mistralai.models import SystemMessage, UserMessage  # noqa: E402
-from mistralai_workflows.plugins.mistralai.lechat import (  # noqa: E402
+from mistralai.client import Mistral  # noqa: E402
+from mistralai.client.models import SystemMessage, UserMessage  # noqa: E402
+from mistralai.workflows.plugins.mistralai.lechat import (  # noqa: E402
     FormInput,
     SingleChoice,
 )
 
 server_url = os.environ.get("SERVER_URL")
 api_key = os.environ.get("MISTRAL_API_KEY")
-
-# Encoding format compatibility patch
-NEW_ENCODING = "json/wf_v1"
-payload_encoder.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
-payload_codec.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
-payload_converter.CUSTOM_ENCODING_FORMAT = NEW_ENCODING
-# fmt: off
-payload_converter.WithContextJSONPayloadConverter.encoding = property(  # type: ignore # noqa
-    lambda self: NEW_ENCODING 
-) 
-# fmt: on
 
 THRESHOLD = 3000
 

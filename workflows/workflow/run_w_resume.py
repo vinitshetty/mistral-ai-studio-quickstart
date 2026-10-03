@@ -14,9 +14,9 @@ from http import HTTPStatus
 from pathlib import Path
 
 from dotenv import load_dotenv
-from mistralai_workflows import WorkflowsClient
-from mistralai_workflows.exceptions import WorkflowsException
-from mistralai_workflows.protocol.v1.workflow import WorkflowExecutionStatus
+from mistralai.client import Mistral
+from mistralai.client.errors import SDKError
+from mistralai.workflows.protocol.v1.workflow import WorkflowExecutionStatus
 from pydantic import BaseModel
 
 load_dotenv()
@@ -44,14 +44,16 @@ class OCRWorkflowInput(BaseModel):
     document_path: str
 
 
-async def run_single(client: WorkflowsClient, invoice_path: Path, demo_run_id: str) -> None:
+async def run_single(client: Mistral, invoice_path: Path, demo_run_id: str) -> None:
     """Run the OCR workflow on a single invoice, resuming if already in progress."""
     execution_id = f"invoice-{invoice_path.stem}-{demo_run_id}"
 
     # Check existing state on the server (Temporal is the source of truth)
     should_start = False
     try:
-        existing = await client.get_workflow_execution(execution_id)
+        existing = await client.workflows.executions.get_workflow_execution_async(
+            execution_id=execution_id
+        )
 
         if existing.status == WorkflowExecutionStatus.COMPLETED:
             print(f"[{invoice_path.name}] Already completed, skipping.")
@@ -65,8 +67,8 @@ async def run_single(client: WorkflowsClient, invoice_path: Path, demo_run_id: s
             print(f"[{invoice_path.name}] Unknown status={existing.status}, re-executing...")
             should_start = True
 
-    except WorkflowsException as e:
-        if e.status == HTTPStatus.NOT_FOUND:
+    except SDKError as e:
+        if e.status_code == HTTPStatus.NOT_FOUND.value:
             print(f"[{invoice_path.name}] No existing execution found, starting fresh.")
             should_start = True
         else:
@@ -75,13 +77,13 @@ async def run_single(client: WorkflowsClient, invoice_path: Path, demo_run_id: s
     if should_start:
         print(f"[{invoice_path.name}] Execution ID: {execution_id}")
         try:
-            await client.execute_workflow(
+            await client.workflows.execute_workflow_async(
                 workflow_identifier="ocr_invoice_workflow_test",
-                input_data=OCRWorkflowInput(document_path=str(invoice_path)),
+                input=OCRWorkflowInput(document_path=str(invoice_path)),
                 execution_id=execution_id,
             )
-        except WorkflowsException as e:
-            if e.status == HTTPStatus.CONFLICT:
+        except SDKError as e:
+            if e.status_code == HTTPStatus.CONFLICT.value:
                 # Race condition: another process started it between our check and execute
                 print(f"[{invoice_path.name}] Conflict on start, attaching to running execution.")
             else:
@@ -90,7 +92,7 @@ async def run_single(client: WorkflowsClient, invoice_path: Path, demo_run_id: s
     print(f"[{invoice_path.name}] Waiting for completion...")
     print(f"[{invoice_path.name}] To approve: uv run python workflows/utils/approve.py {execution_id}")
 
-    response = await client.wait_for_workflow_completion(execution_id)
+    response = await client.workflows.wait_for_workflow_completion_async(execution_id)
     result = response.result
 
     print("=" * 70)
@@ -121,8 +123,8 @@ async def main() -> None:
     parser.add_argument("demo_run_id", nargs="?", default="default", help="Run ID appended to execution IDs (change to reprocess all invoices)")
     args = parser.parse_args()
 
-    client = WorkflowsClient(
-        base_url=os.environ["SERVER_URL"],
+    client = Mistral(
+        server_url=os.environ["SERVER_URL"],
         api_key=os.environ["MISTRAL_API_KEY"],
     )
 
